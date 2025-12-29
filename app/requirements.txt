@@ -1,0 +1,36 @@
+# app/requirements.txt
+fastapi
+uvicorn
+
+sqlmodel
+sqlalchemy
+psycopg[binary]
+alembic
+
+pydantic
+pydantic-settings
+email-validator
+
+passlib[bcrypt]
+python-jose
+
+python-multipart
+Jinja2
+
+httpx
+pytest
+pydantic>=2
+pydantic-settings
+
+clickhouse-connect
+
+# ML
+flaml[automl]
+xgboost
+lightgbm
+catboost
+scikit-learn==1.6.1
+pandas
+numpy<=2.0.0
+
+fastapi-and-logging

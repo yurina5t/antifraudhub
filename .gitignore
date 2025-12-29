@@ -1,0 +1,23 @@
+# ENV FILES — MUST NEVER GO INTO GIT
+.env
+*.env
+!*.env.example
+
+# Python cache
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Virtual environments
+.venv/
+venv/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+.DS_Store
+
+# Docker artifacts
+*.log
+docker-data/
