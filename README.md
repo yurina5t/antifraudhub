@@ -57,15 +57,38 @@ GET /api/fraud/predict/user/{user_email}
   "decision": "BLOCK"
 }
 
+## 🧩 Масштабирование и архитектура
+                ┌─────────────┐
+                │   NGINX     │
+                │ (Gateway)   │
+                └──────┬──────┘
+                       │
+          ┌────────────┴────────────┐
+          │                         │
+┌─────────────────┐     ┌──────────────────┐
+│ realtime-api    │     │ batch-worker     │
+│ fast, low-lat   │     │ heavy, offline   │
+│ WORKER_MODE=rt  │     │ WORKER_MODE=batch│
+└─────────────────┘     └──────────────────┘
+          │                         │
+          └──────────┬──────────────┘
+                     │
+                PostgreSQL
+
+Идея масштабирования
+
+- **realtime-api** — обслуживает онлайн-запросы с минимальной задержкой
+- **batch-worker** — выполняет тяжелые batch-прогоны
+- Один Docker-образ, разные роли через WORKER_MODE
+- Реалистичный production-паттерн для антифрод-систем
 
 ## 🗄️ Хранение данных
-## ClickHouse
 
+**ClickHouse**
 - Источник фичей пользователей
 - Используется для batch и single-user пайплайнов
 
-## Postgres
-
+**Postgres**
 - Таблица predictions
 - Хранит:
     - user_email
@@ -75,28 +98,25 @@ GET /api/fraud/predict/user/{user_email}
 
 ## 🧪 Тестирование
 
-Используется pytest.
+Используется **pytest**.
 
 Покрыто:
 
-/health
-
-API контракт batch и single predict
-
-preprocess-контракт (FEATURES)
+- /health
+- API контракт batch и single predict
+- preprocess-контракт (FEATURES)
 
 Запуск тестов:
-
 PYTHONPATH=. pytest app/tests -v
 
 
 ## 🐳 Docker
 
-** Сервисы **
+**Сервисы**
 - antifraud-api — FastAPI + ML
 - postgres — хранение предсказаний
 
-Запуск
+**Запуск**
 docker compose up -d
 
 Перезапуск API без пересборки
@@ -135,4 +155,3 @@ Pytest
 ✅ Docker-окружение готово
 ✅ Тесты добавлены
 🚧 Авторизация отключена (осознанно)
-

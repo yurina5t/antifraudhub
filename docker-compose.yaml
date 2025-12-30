@@ -1,10 +1,15 @@
+version: "3.9"
+
 services:
-  antifraud-api:
+  antifraud-realtime:
     build: .
-    container_name: antifraud-api
+    container_name: antifraud-realtime
     restart: unless-stopped
     env_file:
       - .env
+    environment:
+      WORKER_MODE: realtime
+      WEB_CONCURRENCY: 2
     ports:
       - "8000:8000"
     depends_on:
@@ -17,6 +22,21 @@ services:
       interval: 15s
       timeout: 3s
       retries: 5
+
+  antifraud-batch:
+    build: .
+    container_name: antifraud-batch
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      WORKER_MODE: batch
+      WEB_CONCURRENCY: 1
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - antifraud-network
 
   database:
     image: postgres:16
