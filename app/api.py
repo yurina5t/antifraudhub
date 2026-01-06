@@ -1,34 +1,81 @@
 # app/api.py
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes.home import home_route
-from app.routes.user import user_route
-#from app.routes.auth import auth_route
-from app.routes.fraud import fraud_route
+
 from app.database.database import init_db
 from app.database.config import get_settings
 from app.middleware.analytics import RequestLoggingMiddleware
 from app.services.logging.logging import get_logger
-import uvicorn
+from app.core.runtime import get_worker_mode
+
+# Routers
+from app.routes.home import home_route
+from app.routes.user import user_route
+from app.routes.fraud import fraud_route
+from app.routes.gateway import gateway_route  
+
 
 logger = get_logger(logger_name=__name__)
 settings = get_settings()
+WORKER_MODE = get_worker_mode()
+
+
+def _register_routers(app: FastAPI) -> None:
+    """
+    Подключает роутеры в зависимости от WORKER_MODE.
+    """
+    logger.info(f"Starting service in WORKER_MODE={WORKER_MODE}")
+
+    if WORKER_MODE == "api":
+        # Public Gateway
+        app.include_router(home_route, tags=["Home"])
+        app.include_router(user_route, prefix="/api/users", tags=["Users"])
+        app.include_router(gateway_route, prefix="/api", tags=["Gateway"])
+
+    elif WORKER_MODE == "realtime":
+        # Internal realtime worker
+        app.include_router(fraud_route, prefix="/internal/fraud", tags=["Realtime"])
+
+    elif WORKER_MODE == "batch":
+        # Internal batch worker
+        app.include_router(fraud_route, prefix="/internal/fraud", tags=["Batch"])
+
+    else:
+        raise RuntimeError(f"Unknown WORKER_MODE={WORKER_MODE}")
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    logger.info("Initializing application...")
+
+    if WORKER_MODE == "api":
+        logger.info("Initializing database (gateway only)")
+        try:
+            init_db()
+        except Exception as e:
+            logger.error(f"Database init failed: {e}")
+            raise
+    else:
+        logger.info("Skipping DB init (worker mode)")
+
+    yield
+
+    logger.info("Shutting down application")
 
 
 def create_application() -> FastAPI:
-    """
-    Создание и конфигурация FastAPI приложения.
-    """
-
     app = FastAPI(
         title=settings.APP_NAME,
         description=settings.APP_DESCRIPTION,
         version=settings.API_VERSION,
         docs_url="/api/docs",
         redoc_url="/api/redoc",
+        lifespan=lifespan,
     )
 
-    # CORS
+    # CORS (internal)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"],
@@ -40,39 +87,10 @@ def create_application() -> FastAPI:
     # Request logging middleware
     app.add_middleware(RequestLoggingMiddleware)
 
-    # Routers
-    app.include_router(home_route, tags=['Home'])
-    #app.include_router(auth_route, prefix='/auth', tags=['Auth']) auth отключён для внутреннего сервиса
-    app.include_router(user_route, prefix='/api/users', tags=['Users'])
-    app.include_router(fraud_route, prefix="/api/fraud", tags=["Fraud"])
+    # Routers by role
+    _register_routers(app)
 
     return app
 
 
 app = create_application()
-
-
-@app.on_event("startup")
-def on_startup():
-    logger.info("Инициализация базы данных...")
-    try:
-        init_db()
-        logger.info("Запуск приложения успешно завершён")
-    except Exception as e:
-        logger.error(f"Ошибка при инициализации БД: {e}")
-        raise
-
-
-@app.on_event("shutdown")
-def on_shutdown():
-    logger.info("Остановка приложения...")
-
-
-if __name__ == "__main__":
-    uvicorn.run(
-        "app.api:app",
-        host="0.0.0.0",
-        port=8080,
-        reload=True,
-        log_level="info",
-    )

@@ -1,4 +1,5 @@
 
+
 # 🛡️ AntifraudHub
 
 **AntifraudHub** — сервис скоринга рисков и антифрода на основе ML-модели.  
@@ -37,11 +38,10 @@ FRAUD_REVIEW_THRESHOLD = 0.134
 FRAUD_BLOCK_THRESHOLD = 0.70
 ```
 ## 📡 API
-🔹 Healthcheck
+🔹 ML Healthcheck (internal). 
+GET /internal/fraud/health
 
-GET /api/fraud/health
-
-🔹 Batch-предсказание (все пользователи)
+🔹 Batch-предсказание (все пользователи). 
 POST /api/fraud/predict/batch
 
 Query-параметры (опционально):
@@ -60,14 +60,14 @@ GET /api/fraud/predict/user/{user_email}
 ## 🧩 Масштабирование и архитектура
 ```
                 ┌─────────────┐
-                │   NGINX     │
-                │ (Gateway)   │
+                │ API Gateway │
+                │   FastAPI   │
                 └──────┬──────┘
                        │
           ┌────────────┴────────────┐
           │                         │
 ┌─────────────────┐     ┌──────────────────┐
-│ realtime-api    │     │ batch-worker     │
+│ realtime-worker │     │ batch-worker     │
 │ fast, low-lat   │     │ heavy, offline   │
 │ WORKER_MODE=rt  │     │ WORKER_MODE=batch│
 └─────────────────┘     └──────────────────┘
@@ -114,8 +114,12 @@ PYTHONPATH=. pytest app/tests -v
 ## 🐳 Docker
 
 **Сервисы**
-- antifraud-api — FastAPI + ML
+- antifraud-api — API Gateway (FastAPI)
+- antifraud-realtime — realtime ML worker
+- antifraud-batch — batch ML worker
 - postgres — хранение предсказаний
+
+Один Docker-образ, разные роли через WORKER_MODE.
 
 **Запуск**
 docker compose up -d
@@ -155,4 +159,8 @@ docker compose restart antifraud-api
 ✅ REST API готов  
 ✅ Docker-окружение готово  
 ✅ Тесты добавлены  
+<<<<<<< HEAD
 🚧 Авторизация отключена (осознанно)  
+=======
+🚧 Авторизация отключена (осознанно)  
+>>>>>>> 39cc1f8 (feat: antifraud gateway with batch and realtime workers via WORKER_MODE)

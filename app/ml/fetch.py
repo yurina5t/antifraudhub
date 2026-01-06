@@ -1,29 +1,47 @@
 # app/ml/fetch.py
-import os
 import pandas as pd
-import clickhouse_connect
+from typing import Optional
 
 
 def run_query(query: str, client) -> pd.DataFrame:
     result = client.query(query)
     return pd.DataFrame(result.result_rows, columns=result.column_names)
 
-def fetch_user_features(client) -> pd.DataFrame:
+
+def _build_features_query(active_days: int, feature_days: int, user_email: Optional[str] = None) -> str:
     """
-    Агрегированные признаки по всем пользователям,
-    совершившим SALE за последние 7 дней
+    Универсальный SQL для агрегации пользовательских фичей.
+
+    - Batch: active_days=7 (кто активен), feature_days=365/730 (агрегация по истории)
+    - Single-user: user_email задан, active_days игнорируется логически, feature_days=365/730
     """
+
+    if user_email:
+        safe_email = user_email.replace("'", "''")
+        # Realtime / single-user режим
+        active_users_cte = f"""
+        active_users AS (
+            SELECT lower(trim('{safe_email}')) AS user_email
+        ),
+        """
+    else:
+        # Batch режим
+        active_users_cte = f"""
+        active_users AS (
+            SELECT DISTINCT lower(trim(user_email)) AS user_email
+            FROM dbt_mart.dim_merchant_transactions
+            WHERE event_date >= today() - {active_days}
+              AND transaction_type = 'SALE'
+              AND is_test = 0
+              AND project != 'adxad'
+              AND user_email != ''
+        ),
+        """
+
     query = f"""
     WITH
-	active_users AS (
-        SELECT DISTINCT lower(trim(user_email)) AS user_email
-        FROM dbt_mart.dim_merchant_transactions
-        WHERE event_date >= today() - 7
-            AND transaction_type = 'SALE'
-            AND is_test = 0
-            AND project != 'adxad'
-            AND user_email != ''
-        ),
+	{active_users_cte}
+
     dm_features AS (
         SELECT
             lower(trim(user_email)) AS user_email,
@@ -57,8 +75,9 @@ def fetch_user_features(client) -> pd.DataFrame:
             AND transaction_type = 'SALE'
             AND is_test = 0
             AND project != 'adxad'
-            AND lower(trim(user_email)) IN (SELECT user_email FROM active_users)
             AND user_email != ''
+            AND event_date >= today() - {feature_days}
+            AND lower(trim(user_email)) IN (SELECT user_email FROM active_users)
         GROUP BY user_email
     ),
     dc_features AS (
@@ -77,8 +96,9 @@ def fetch_user_features(client) -> pd.DataFrame:
         FROM dbt_mart.dim_client_paysites_member_transactions
         WHERE 1=1
         AND trans_type IN ('initial','onetime','rebill','trial','conversion')
-        AND lower(trim(member_email)) IN (SELECT user_email FROM active_users)
         AND member_email != ''
+        AND attraction_date >= today() - {feature_days}
+        AND lower(trim(member_email)) IN (SELECT user_email FROM active_users)
         GROUP BY user_email
     )
     SELECT
@@ -89,9 +109,39 @@ def fetch_user_features(client) -> pd.DataFrame:
     LEFT JOIN dc_features dc
         ON dm.user_email = dc.user_email
     """
+    return query
+
+
+def fetch_user_features_batch(client, active_days: int = 7, feature_days: int = 365) -> pd.DataFrame:
+    """
+    Batch-агрегация фичей по всем активным пользователям за период.
+    """
+    query = _build_features_query(
+        active_days=active_days,
+        feature_days=feature_days,
+        user_email=None,
+    )
     return run_query(query, client)
 
-# чуть позже реализую
+
+def fetch_user_features_user(client, user_email: str, feature_days: int = 365) -> pd.DataFrame:
+    """
+    Агрегация фичей по одному пользователю за длинный период.
+    """
+    query = _build_features_query(
+        active_days=7,              # любое число так как не важно для user_email режима
+        feature_days=feature_days,
+        user_email=user_email,
+    )
+    return run_query(query, client)
+
+
+
+
+
+
+
+# ---------------- чуть позже реализую  ----------------
 def fetch_decline_text(client) -> pd.DataFrame:
     """
     Decline-тексты по активным пользователям за 7 дней

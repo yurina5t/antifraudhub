@@ -1,7 +1,7 @@
 # app/ml/pipeline.py
 import pandas as pd
 
-from app.ml.fetch import fetch_user_features
+from app.ml.fetch import fetch_user_features_batch, fetch_user_features_user
 from app.ml.fe import apply_feature_engineering
 from app.ml.preprocess import preprocess_for_model
 from app.ml.model import predict
@@ -10,54 +10,45 @@ from app.core.decision import make_decision
 
 # ---------------- BATCH ----------------
 
-def run_batch_pipeline(client) -> pd.DataFrame:
-    df_struct = fetch_user_features(client)
-    df_struct = apply_feature_engineering(df_struct)
+def run_batch_pipeline(client, active_days=7, feature_days=365) -> pd.DataFrame:
+    """
+    Batch-пайплайн:
+    ClickHouse → features → model → decision
+    """
+    df_struct = fetch_user_features_batch(client, active_days=active_days, feature_days=feature_days)
 
-    df_preprocessed = preprocess_for_model(df_struct)
+    if df_struct.empty:
+        return df_struct
 
-    results = []
+    df_fe = apply_feature_engineering(df_struct)
+    X = preprocess_for_model(df_fe)
 
-    for idx, row in df_preprocessed.iterrows():
-        user_email = df_struct.loc[idx, "user_email"]
+    risks = predict(X)
+    df_struct["risk_score"] = risks
+    df_struct["decision"] = df_struct["risk_score"].apply(
+        lambda r: make_decision(r).value
+    )
 
-        X = row.to_frame().T
-        risk = predict(X)
-        decision = make_decision(risk)
-
-        results.append({
-            "user_email": user_email,
-            "risk_score": risk,
-            "decision": decision.value
-        })
-
-    return pd.DataFrame(results)
-
+    return df_struct[["user_email", "risk_score", "decision"]]
 
 # ---------------- SINGLE USER ----------------
 
-def run_single_user_pipeline(client, user_email: str) -> dict| None:
-    df_struct = fetch_user_features(client)
-    print("REQUEST EMAIL:", repr(user_email))
-    print(df_struct["user_email"].head(20).tolist())
-    email = user_email.strip().lower()
-    #df_user = df_struct[df_struct["user_email"] == user_email]
-    df_struct["user_email_norm"] = (df_struct["user_email"].astype(str).str.strip().str.lower())
-
-    df_user = df_struct[df_struct["user_email_norm"] == email]
-
-    if df_user.empty:
+def run_single_user_pipeline(client, user_email: str, feature_days: int = 365)-> dict | None:
+    """
+    Realtime-пайплайн для одного пользователя
+    """
+    df_struct = fetch_user_features_user(client, user_email=user_email, feature_days=feature_days)
+    if df_struct.empty:
         return None  
 
-    df_user = apply_feature_engineering(df_user)
-    X = preprocess_for_model(df_user).iloc[[0]]
+    df_fe = apply_feature_engineering(df_struct)
+    X = preprocess_for_model(df_fe)
 
-    risk = predict(X)
-    decision = make_decision(risk)
+    risk = float(predict(X)[0])
+    decision = make_decision(risk).value
 
     return {
         "user_email": user_email,
         "risk_score": risk,
-        "decision": decision.value
+        "decision": decision,
     }
-

@@ -1,6 +1,21 @@
-version: "3.9"
-
 services:
+  # ---------------- API GATEWAY ----------------
+  antifraud-api:
+    build: .
+    container_name: antifraud-api
+    restart: unless-stopped
+    env_file:
+      - .env
+    environment:
+      WORKER_MODE: api
+    ports:
+      - "8000:8000"   
+    depends_on:
+      database:
+        condition: service_healthy
+    networks:
+      - antifraud-network
+# ---------------- REALTIME WORKER ----------------
   antifraud-realtime:
     build: .
     container_name: antifraud-realtime
@@ -9,20 +24,19 @@ services:
       - .env
     environment:
       WORKER_MODE: realtime
-      WEB_CONCURRENCY: 2
-    ports:
-      - "8000:8000"
+    expose:
+      - "8000" 
     depends_on:
       database:
         condition: service_healthy
     networks:
       - antifraud-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 15s
+      test: ["CMD", "curl", "-f", "http://localhost:8000/internal/fraud/health"]
+      interval: 30s
       timeout: 3s
-      retries: 5
-
+      retries: 3
+ # ---------------- BATCH WORKER ----------------
   antifraud-batch:
     build: .
     container_name: antifraud-batch
@@ -31,13 +45,19 @@ services:
       - .env
     environment:
       WORKER_MODE: batch
-      WEB_CONCURRENCY: 1
+    expose:
+      - "8000"
     depends_on:
       database:
         condition: service_healthy
     networks:
       - antifraud-network
-
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/internal/fraud/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+# ---------------- DATABASE ----------------
   database:
     image: postgres:16
     container_name: antifraud-postgres
@@ -49,7 +69,7 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
     ports:
-      - "5432:5432"
+      - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     networks:

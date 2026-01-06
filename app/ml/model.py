@@ -1,20 +1,22 @@
 # app/ml/model.py
 import pickle
-
+import numpy as np
+import pandas as pd
 
 MODEL_PATH = "models/fraud_model.pkl"
 
 with open(MODEL_PATH, "rb") as f:
     payload = pickle.load(f)
 
-automl = payload["automl"]        
+model = payload["automl"]        
 FEATURES = payload["features"]
 BEST_THRESHOLD = payload.get("best_threshold")
     
-def predict(X) -> float:
+def predict(X: pd.DataFrame) -> np.ndarray:
     """
-    X — уже полностью готовая матрица признаков
+     X : pd.DataFrame
+        shape (n_samples, n_features)
+        Полностью подготовленные model-ready признаки.
     """
     
-    proba = float(automl.predict_proba(X)[0, 1])
-    return  float(proba)
+    return model.predict_proba(X)[:, 1]

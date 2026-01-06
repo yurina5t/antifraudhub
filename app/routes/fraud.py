@@ -1,7 +1,7 @@
 # app/routes/fraud.py
 import pandas as pd
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlmodel import Session
 
 from app.database.database import get_session
@@ -15,7 +15,6 @@ from app.core.runtime import get_worker_mode
 from app.core.decision import Decision
 
 fraud_route = APIRouter()
-
 WORKER_MODE = get_worker_mode()
 
 def store_prediction(db: Session, user_email: str, risk: float, decision: str):
@@ -29,6 +28,7 @@ def store_prediction(db: Session, user_email: str, risk: float, decision: str):
     )
     db.add(record)
 
+# ---------------- HEALTH ----------------
 @fraud_route.get("/health", summary="ML model healthcheck")
 def fraud_healthcheck():
     """
@@ -37,7 +37,6 @@ def fraud_healthcheck():
     - что preprocess + predict работают
     """
     try:
-        # минимальный валидный input
         dummy = pd.DataFrame([{c: 0 for c in FEATURES}])
         _ = predict(dummy)
 
@@ -49,10 +48,13 @@ def fraud_healthcheck():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
-
+# ---------------- BATCH ----------------
 @fraud_route.post("/predict/batch")
 def fraud_predict_batch(
-    decision: Optional[List[Decision]] = None,
+    decision: Optional[List[Decision]] = Query(
+        default=None,
+        description="Allowed values: REVIEW, BLOCK",
+    ),
     ch_client=Depends(get_clickhouse_client),
     db: Session = Depends(get_session),
 ):
@@ -60,7 +62,7 @@ def fraud_predict_batch(
     Batch-прогон всех пользователей:
     ClickHouse → pipeline → Postgres
     Можно фильтровать вывод:
-    ?decision=REVIEW&decision=BLOCK
+    REVIEW & BLOCK
     """
     if WORKER_MODE != "batch":
         raise HTTPException(
@@ -69,6 +71,9 @@ def fraud_predict_batch(
         )
     
     df = run_batch_pipeline(ch_client)
+    if df.empty:
+        return []
+    
     if decision:
         df = df[df["decision"].isin([d.value for d in decision])]
 
@@ -81,9 +86,9 @@ def fraud_predict_batch(
         )
 
     db.commit()
-    return df.to_dict(orient="records")
+    return df[["user_email", "risk_score", "decision"]].to_dict(orient="records")
 
-
+# ---------------- SINGLE USER ----------------
 @fraud_route.get("/predict/user/{user_email}", response_model=PredictResponse)
 def fraud_predict_user(
     user_email: str,
