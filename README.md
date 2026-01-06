@@ -159,8 +159,4 @@ docker compose restart antifraud-api
 ✅ REST API готов  
 ✅ Docker-окружение готово  
 ✅ Тесты добавлены  
-<<<<<<< HEAD
 🚧 Авторизация отключена (осознанно)  
-=======
-🚧 Авторизация отключена (осознанно)  
->>>>>>> 39cc1f8 (feat: antifraud gateway with batch and realtime workers via WORKER_MODE)
