@@ -1,0 +1,60 @@
+body {
+    font-family: system-ui, sans-serif;
+    background: #f6f7f9;
+    margin: 0;
+    padding: 20px;
+}
+
+header {
+    margin-bottom: 20px;
+}
+
+.subtitle {
+    color: #666;
+}
+
+.card {
+    background: #fff;
+    padding: 20px;
+    margin-bottom: 30px;
+    border-radius: 8px;
+}
+
+table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+th, td {
+    padding: 10px;
+    border-bottom: 1px solid #eee;
+}
+
+.badge {
+    padding: 4px 10px;
+    border-radius: 12px;
+    font-weight: bold;
+    font-size: 0.85em;
+}
+
+.badge-allow {
+    background: #e6f4ea;
+    color: #1e7e34;
+}
+
+.badge-review {
+    background: #fff4e5;
+    color: #b26a00;
+}
+
+.badge-block {
+    background: #fdecea;
+    color: #b02a37;
+}
+
+.user-result {
+    margin-top: 12px;
+    padding: 12px;
+    background: #f9fafb;
+    border-radius: 6px;
+}

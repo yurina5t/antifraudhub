@@ -1,23 +1,24 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    {% block head %}
-    <link rel="stylesheet" href="/static/style.css" />
-    <title>{% block title %}{% endblock %} - AntifraudHub</title>
-    {% endblock %}
+    <meta charset="UTF-8">
+    <title>AntifraudHub</title>
+    <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
 
-    <div id="content">
-        {% block content %}{% endblock %}
-    </div>
+<header>
+    <h1>🛡️ AntifraudHub</h1>
+    <p class="subtitle">Fraud Risk Scoring Dashboard</p>
+</header>
 
-    <div id="footer">
-        {% include '_site_map.html' %}<br>
-        {% block footer %}
-            &copy; 2025 AntifraudHub
-        {% endblock %}
-    </div>
+<main>
+    {% block content %}{% endblock %}
+</main>
+
+<footer>
+    © 2025 AntifraudHub
+</footer>
 
 </body>
 </html>

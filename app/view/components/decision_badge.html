@@ -1,0 +1,9 @@
+{% if decision == "ALLOW" %}
+<span class="badge badge-allow">ALLOW</span>
+{% elif decision == "REVIEW" %}
+<span class="badge badge-review">REVIEW</span>
+{% elif decision == "BLOCK" %}
+<span class="badge badge-block">BLOCK</span>
+{% else %}
+<span class="badge">UNKNOWN</span>
+{% endif %}

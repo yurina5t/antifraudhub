@@ -2,6 +2,7 @@
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database.database import init_db
@@ -14,7 +15,8 @@ from app.core.runtime import get_worker_mode
 from app.routes.home import home_route
 from app.routes.user import user_route
 from app.routes.fraud import fraud_route
-from app.routes.gateway import gateway_route  
+from app.routes.gateway import gateway_route
+from app.routes.ui import router as ui_router  
 
 
 logger = get_logger(logger_name=__name__)
@@ -33,6 +35,7 @@ def _register_routers(app: FastAPI) -> None:
         app.include_router(home_route, tags=["Home"])
         app.include_router(user_route, prefix="/api/users", tags=["Users"])
         app.include_router(gateway_route, prefix="/api", tags=["Gateway"])
+        app.include_router(ui_router, prefix="/ui", include_in_schema=False)
 
     elif WORKER_MODE == "realtime":
         # Internal realtime worker
@@ -73,6 +76,12 @@ def create_application() -> FastAPI:
         docs_url="/api/docs",
         redoc_url="/api/redoc",
         lifespan=lifespan,
+    )
+    # STATIC FILES (CSS, JS)
+    app.mount(
+        "/static",
+        StaticFiles(directory="app/view/static"),
+        name="static",
     )
 
     # CORS (internal)

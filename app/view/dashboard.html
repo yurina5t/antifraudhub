@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block content %}
+
+<section class="card">
+    <h2>🔍 Check user by email</h2>
+    <input id="email" placeholder="user@example.com">
+    <button onclick="checkUser()">Check</button>
+
+    <div id="user-result" class="card" style="margin-top: 15px;"></div>
+</section>
+
+<section class="card">
+    <h2>📦 Batch analysis</h2>
+
+<div id="counters" style="margin: 10px 0; font-weight: bold;">
+    🔴 BLOCK: <span id="cnt-block">0</span> |
+    🟠 REVIEW: <span id="cnt-review">0</span> |
+    🟢 ALLOW: <span id="cnt-allow">0</span>
+</div>
+
+<label for="decision-filter"><strong>Decision</strong></label>
+<select id="decision-filter" onchange="runBatch()">
+    <option value="important" selected>REVIEW + BLOCK</option>
+    <option value="REVIEW">REVIEW only</option>
+    <option value="BLOCK">BLOCK only</option>
+    <option value="ALLOW">ALLOW only</option>
+    <option value="ALL">ALL</option>
+</select>
+
+    <br><br>
+    <button onclick="runBatch()">Run batch</button>
+
+    <table>
+        <thead>
+            <tr>
+                <th>Email</th>
+                <th>Risk</th>
+                <th>Decision</th>
+            </tr>
+        </thead>
+        <tbody id="batch-table"></tbody>
+    </table>
+</section>
+
+<script>
+async function checkUser() {
+    const email = document.getElementById("email").value;
+    if (!email) return;
+
+    const r = await fetch(`/api/fraud/predict/user/${email}`);
+    const row = await r.json();
+
+    const container = document.getElementById("user-result");
+
+    container.innerHTML = `
+        <table>
+            <thead>
+                <tr>
+                    <th>Email</th>
+                    <th>Risk</th>
+                    <th>Decision</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>${row.user_email}</td>
+                    <td>${row.risk_score.toFixed(3)}</td>
+                    <td>
+                        <span class="badge badge-${row.decision.toLowerCase()}">
+                            ${row.decision}
+                        </span>
+                    </td>
+                </tr>
+            </tbody>
+        </table>
+    `;
+}
+
+async function runBatch() {
+    const filter = document.getElementById("decision-filter").value;
+
+    const r = await fetch(`/api/fraud/predict/batch`, {
+        method: "POST"
+    });
+    const data = await r.json();
+
+    const counters = {
+        BLOCK: 0,
+        REVIEW: 0,
+        ALLOW: 0
+    };
+
+    data.forEach(row => {
+        if (counters[row.decision] !== undefined) {
+            counters[row.decision]++;
+        }
+    });
+
+    document.getElementById("cnt-block").textContent = counters.BLOCK;
+    document.getElementById("cnt-review").textContent = counters.REVIEW;
+    document.getElementById("cnt-allow").textContent = counters.ALLOW;
+
+
+    let filtered = data.filter(row => {
+        if (filter === "important") {
+            return row.decision === "REVIEW" || row.decision === "BLOCK";
+        }
+        if (filter === "ALL") {
+            return true;
+        }
+        return row.decision === filter;
+    });
+    // сортировка по риску
+    filtered.sort((a, b) => b.risk_score - a.risk_score);
+    // ограничение до 100 записей для ALLOW и ALL
+    if (filter === "ALLOW" || filter === "ALL") {
+    filtered = filtered.slice(0, 100);
+    }
+
+    const tbody = document.getElementById("batch-table");
+    tbody.innerHTML = "";
+
+    filtered.forEach(row => {
+        tbody.innerHTML += `
+        <tr>
+            <td>${row.user_email}</td>
+            <td>${row.risk_score.toFixed(3)}</td>
+            <td>
+                <span class="badge badge-${row.decision.toLowerCase()}">
+                    ${row.decision}
+                </span>
+            </td>
+        </tr>
+        `;
+    });
+}
+</script>
+
+{% endblock %}
